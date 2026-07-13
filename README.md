@@ -99,6 +99,8 @@ $env:PAPER_LLM_MODEL="gpt-4.1-mini"
 uv run python examples/demo.py ".\论文.pdf"
 ```
 
+独立演示客户端本身不提供 MCP Sampling。如果没有设置 `PAPER_LLM_API_KEY`，脚本会显示提示并自动降级为离线抽取模式，不会因 `Sampling not supported` 中断。
+
 默认在 PDF 同目录生成 `论文-report.md`。指定输出路径：
 
 ```powershell

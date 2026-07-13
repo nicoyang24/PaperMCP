@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -30,6 +31,12 @@ async def run_demo(args: argparse.Namespace) -> None:
     if not pdf_path.is_file():
         raise SystemExit(f"PDF 文件不存在: {pdf_path}")
     output = (args.output or pdf_path.with_name(f"{pdf_path.stem}-report.md")).expanduser().resolve()
+    use_llm = not args.offline and bool(os.environ.get("PAPER_LLM_API_KEY"))
+    if not args.offline and not use_llm:
+        print(
+            "提示：当前独立演示客户端不提供 MCP Sampling，且未检测到 PAPER_LLM_API_KEY。\n"
+            "本次将自动使用离线抽取模式。若要生成翻译后的中文深度报告，请先按 README 配置模型。\n"
+        )
 
     server = StdioServerParameters(
         command=sys.executable,
@@ -54,13 +61,14 @@ async def run_demo(args: argparse.Namespace) -> None:
                 {
                     "pdf_path": str(pdf_path),
                     "output_path": str(output),
-                    "use_llm": not args.offline,
+                    "use_llm": use_llm,
                     "max_pages": args.max_pages,
                 },
             )
             if generated.isError:
                 detail = "\n".join(getattr(item, "text", str(item)) for item in generated.content)
-                raise RuntimeError(f"报告生成失败：\n{detail}")
+                print(f"\n报告生成失败：\n{detail}", file=sys.stderr)
+                return
             print(f"\n报告已生成：{output}")
 
 
