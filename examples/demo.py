@@ -21,11 +21,7 @@ def parse_args() -> argparse.Namespace:
         help="报告输出路径，默认写入 PDF 同目录的 <文件名>-report.md",
     )
     parser.add_argument("--max-pages", type=int, default=100, help="最多解析页数，默认 100")
-    parser.add_argument(
-        "--use-llm",
-        action="store_true",
-        help="请求客户端模型总结（本独立演示客户端不提供 Sampling，默认请勿启用）",
-    )
+    parser.add_argument("--offline", action="store_true", help="使用离线抽取模式，不进行中文翻译和深度解读")
     return parser.parse_args()
 
 
@@ -58,7 +54,7 @@ async def run_demo(args: argparse.Namespace) -> None:
                 {
                     "pdf_path": str(pdf_path),
                     "output_path": str(output),
-                    "use_llm": args.use_llm,
+                    "use_llm": not args.offline,
                     "max_pages": args.max_pages,
                 },
             )

@@ -1,33 +1,32 @@
 # Paper Report MCP
 
-一个用于解析本地 PDF 学术论文并生成中文 Markdown 汇总报告的 MCP Server。
+解析本地 PDF 学术论文，生成一份让没有读过原文的人也能看懂的中文 Markdown 汇总报告。
 
-## 功能
+## 报告内容
 
-- `inspect_paper`：读取 PDF 元数据、页数、章节和文本统计。
-- `generate_paper_report`：生成结构化报告，可直接返回，也可保存为 Markdown。
-- 默认离线抽取式总结，不需要 API Key。
-- 设置 `use_llm=true` 后，通过 MCP Sampling 请求客户端所连接的模型生成深度报告。
+深度报告默认包含：
 
-> 当前版本针对含文本层的 PDF。纯扫描 PDF 需要先用 OCR 工具处理。
+- 一句话总结
+- 论文要解决的问题及其重要性
+- 作者提出的方法及分步骤解释
+- 实验数据、对比方法、评价指标和关键数值
+- 主要结果以及结果意味着什么
+- 创新点、局限和实际价值
+- 专业术语的通俗中文解释
+
+英文论文会被翻译、改写为自然中文。生成过程采用“分章节阅读，再综合成文”的方式，避免只总结论文开头。
 
 ## 安装
 
-需要 Python 3.10+。推荐使用 `uv`：
+需要 Python 3.10+，推荐使用 `uv`：
 
 ```powershell
 uv sync
 ```
 
-也可以使用 pip：
+## 启动与 MCP 配置
 
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -e .
-```
-
-## 启动
+启动命令：
 
 ```powershell
 uv run paper-report-mcp
@@ -46,49 +45,82 @@ stdio MCP 客户端配置示例：
 }
 ```
 
-## 调用示例
+## 模型配置
 
-生成离线报告：
+中文翻译和深度解读需要语言模型。服务会按以下顺序选择模型：
+
+1. 如果设置了 `PAPER_LLM_API_KEY`，调用 OpenAI 兼容的 Chat Completions 接口。
+2. 否则，请求当前 MCP 客户端提供 Sampling 能力。
+
+使用 OpenAI 兼容接口时设置：
+
+```powershell
+$env:PAPER_LLM_API_KEY="你的 API Key"
+$env:PAPER_LLM_MODEL="gpt-4.1-mini"
+$env:PAPER_LLM_BASE_URL="https://api.openai.com/v1"
+uv run paper-report-mcp
+```
+
+`PAPER_LLM_BASE_URL` 可省略，默认是 OpenAI API 地址。使用其他兼容服务时，将它改成对应服务的 `/v1` 地址。
+
+## MCP 工具
+
+### `inspect_paper`
+
+读取 PDF 元数据、总页数、章节和文本统计。
+
+### `generate_paper_report`
+
+调用示例：
 
 ```json
 {
   "pdf_path": "D:\\papers\\example.pdf",
   "output_path": "D:\\papers\\example-report.md",
-  "use_llm": false,
+  "use_llm": true,
   "max_pages": 100
 }
 ```
 
-若客户端支持 MCP Sampling，可将 `use_llm` 设为 `true`。这会把提取出的论文文本交给客户端模型总结，无需在服务端配置模型密钥。`max_pages` 控制最多解析页数；超长文本在 LLM 模式下最多提交前 80,000 个字符。
+- `pdf_path`：论文 PDF 的路径。
+- `output_path`：可选，Markdown 报告保存路径。
+- `use_llm`：默认 `true`，生成易懂的中文深度报告。设为 `false` 时只生成离线抽取版，不保证翻译。
+- `max_pages`：最多解析页数，范围为 1～1000。
 
 ## 演示案例
 
-仓库中的 [`examples/demo.py`](examples/demo.py) 是一个完整的 MCP 客户端案例。它会自动启动本项目的 MCP Server，依次调用 `inspect_paper` 和 `generate_paper_report`。
+[`examples/demo.py`](examples/demo.py) 会自动启动 MCP Server，然后调用论文检查和报告生成工具。
 
-把论文 PDF 放到任意位置，例如项目根目录下的 `论文.pdf`，然后执行：
+在 PowerShell 中配置模型并运行：
 
 ```powershell
+$env:PAPER_LLM_API_KEY="你的 API Key"
+$env:PAPER_LLM_MODEL="gpt-4.1-mini"
 uv run python examples/demo.py ".\论文.pdf"
 ```
 
-默认会在 PDF 所在目录生成 `论文-report.md`。也可以指定输出文件和最大页数：
+默认在 PDF 同目录生成 `论文-report.md`。指定输出路径：
 
 ```powershell
 uv run python examples/demo.py ".\论文.pdf" --output ".\reports\论文汇总.md" --max-pages 50
 ```
 
-查看全部参数：
+没有可用模型时，可以显式运行离线演示：
 
 ```powershell
-uv run python examples/demo.py --help
+uv run python examples/demo.py ".\论文.pdf" --offline
 ```
 
-该独立演示客户端使用离线总结模式。`--use-llm` 需要客户端实现 MCP Sampling，因此通常应在 Claude Desktop、VS Code 等支持 Sampling 的 MCP 客户端中使用，而不是在此脚本中启用。
+离线模式只抽取原文关键句，无法可靠地把英文翻译成中文，主要用于检查 PDF 解析功能。
+
+## 限制
+
+- PDF 必须包含可提取的文本层，纯扫描 PDF 需要先进行 OCR。
+- 公式、图片和复杂多栏排版可能无法完整还原。
+- 自动报告可能有遗漏，重要数字和结论应回查原文。
 
 ## 测试
 
 ```powershell
-uv run --with pytest pytest
+uv run pytest
 ```
-
-本项目基于官方 MCP Python SDK v1.x；依赖限制为 `<2`，避免未来 v2 稳定版带来的不兼容变化。
