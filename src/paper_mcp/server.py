@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
@@ -10,6 +9,7 @@ from mcp.types import SamplingMessage, TextContent
 
 from .paper import Paper, parse_pdf
 from .report import build_offline_report
+from .config import LLMConfig, load_llm_config
 
 mcp = FastMCP(
     "paper-report",
@@ -55,18 +55,15 @@ async def _sample(prompt: str, ctx: Context, max_tokens: int) -> str:
     return result.content.text
 
 
-async def _openai_compatible(prompt: str, max_tokens: int) -> str:
-    api_key = os.environ.get("PAPER_LLM_API_KEY", "")
-    base_url = os.environ.get("PAPER_LLM_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-    model = os.environ.get("PAPER_LLM_MODEL", "gpt-4.1-mini")
-    if not api_key:
-        raise RuntimeError("未设置 PAPER_LLM_API_KEY")
+async def _openai_compatible(prompt: str, max_tokens: int, config: LLMConfig) -> str:
+    if not config.api_key:
+        raise RuntimeError("配置文件中未设置 llm.api_key")
     async with httpx.AsyncClient(timeout=180) as client:
         response = await client.post(
-            f"{base_url}/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}"},
+            f"{config.base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {config.api_key}"},
             json={
-                "model": model,
+                "model": config.model,
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.2,
                 "max_tokens": max_tokens,
@@ -78,8 +75,9 @@ async def _openai_compatible(prompt: str, max_tokens: int) -> str:
 
 async def _llm_report(paper: Paper, ctx: Context) -> tuple[str, str]:
     call: Callable[[str, int], Awaitable[str]]
-    if os.environ.get("PAPER_LLM_API_KEY"):
-        call = _openai_compatible
+    config = load_llm_config()
+    if config.api_key:
+        call = lambda prompt, tokens: _openai_compatible(prompt, tokens, config)
         provider = "openai-compatible"
     else:
         call = lambda prompt, tokens: _sample(prompt, ctx, tokens)
@@ -157,8 +155,8 @@ async def generate_paper_report(
             report, mode = await _llm_report(paper, ctx)
         except Exception as exc:
             raise RuntimeError(
-                "中文深度总结需要支持 MCP Sampling 的客户端，或设置 PAPER_LLM_API_KEY、"
-                "PAPER_LLM_MODEL 和可选的 PAPER_LLM_BASE_URL。"
+                "中文深度总结需要支持 MCP Sampling 的客户端，或在 paper_mcp.config.json 中"
+                "配置 llm.api_key、llm.model 和 llm.base_url。"
                 f" 模型调用失败：{exc}"
             ) from exc
     else:

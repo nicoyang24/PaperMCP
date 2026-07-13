@@ -5,12 +5,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import sys
 from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from paper_mcp.config import config_path, load_llm_config
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,11 +31,12 @@ async def run_demo(args: argparse.Namespace) -> None:
     if not pdf_path.is_file():
         raise SystemExit(f"PDF 文件不存在: {pdf_path}")
     output = (args.output or pdf_path.with_name(f"{pdf_path.stem}-report.md")).expanduser().resolve()
-    use_llm = not args.offline and bool(os.environ.get("PAPER_LLM_API_KEY"))
+    config = load_llm_config()
+    use_llm = not args.offline and bool(config.api_key)
     if not args.offline and not use_llm:
         print(
-            "提示：当前独立演示客户端不提供 MCP Sampling，且未检测到 PAPER_LLM_API_KEY。\n"
-            "本次将自动使用离线抽取模式。若要生成翻译后的中文深度报告，请先按 README 配置模型。\n"
+            f"提示：当前独立演示客户端不提供 MCP Sampling，且配置文件中没有 API Key：{config_path()}\n"
+            "本次将自动使用离线抽取模式。若要生成中文深度报告，请先配置该 JSON 文件。\n"
         )
 
     server = StdioServerParameters(

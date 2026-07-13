@@ -1,0 +1,7 @@
+{
+  "llm": {
+    "api_key": "请替换为你的 API Key",
+    "model": "gpt-4.1-mini",
+    "base_url": "https://api.openai.com/v1"
+  }
+}

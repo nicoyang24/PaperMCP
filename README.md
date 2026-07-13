@@ -47,21 +47,35 @@ stdio MCP 客户端配置示例：
 
 ## 模型配置
 
-中文翻译和深度解读需要语言模型。服务会按以下顺序选择模型：
-
-1. 如果设置了 `PAPER_LLM_API_KEY`，调用 OpenAI 兼容的 Chat Completions 接口。
-2. 否则，请求当前 MCP 客户端提供 Sampling 能力。
-
-使用 OpenAI 兼容接口时设置：
+中文翻译和深度解读需要语言模型。复制示例配置文件：
 
 ```powershell
-$env:PAPER_LLM_API_KEY="你的 API Key"
-$env:PAPER_LLM_MODEL="gpt-4.1-mini"
-$env:PAPER_LLM_BASE_URL="https://api.openai.com/v1"
-uv run paper-report-mcp
+Copy-Item paper_mcp.config.example.json paper_mcp.config.json
 ```
 
-`PAPER_LLM_BASE_URL` 可省略，默认是 OpenAI API 地址。使用其他兼容服务时，将它改成对应服务的 `/v1` 地址。
+打开项目根目录的 `paper_mcp.config.json`，填入配置：
+
+```json
+{
+  "llm": {
+    "api_key": "你的 API Key",
+    "model": "gpt-4.1-mini",
+    "base_url": "https://api.openai.com/v1"
+  }
+}
+```
+
+- `api_key`：模型服务的 API Key。
+- `model`：模型服务支持的模型名称。
+- `base_url`：OpenAI 兼容接口的 `/v1` 地址。
+
+真实配置文件已经加入 `.gitignore`，不会被 Git 提交。服务没有读取到 API Key 时，会尝试请求当前 MCP 客户端提供 Sampling 能力。
+
+默认从当前工作目录读取 `paper_mcp.config.json`。如果配置文件放在其他位置，可通过 `PAPER_MCP_CONFIG` 指定路径：
+
+```powershell
+$env:PAPER_MCP_CONFIG="D:\config\paper-mcp.json"
+```
 
 ## MCP 工具
 
@@ -91,15 +105,13 @@ uv run paper-report-mcp
 
 [`examples/demo.py`](examples/demo.py) 会自动启动 MCP Server，然后调用论文检查和报告生成工具。
 
-在 PowerShell 中配置模型并运行：
+创建 `paper_mcp.config.json` 后直接运行：
 
 ```powershell
-$env:PAPER_LLM_API_KEY="你的 API Key"
-$env:PAPER_LLM_MODEL="gpt-4.1-mini"
 uv run python examples/demo.py ".\论文.pdf"
 ```
 
-独立演示客户端本身不提供 MCP Sampling。如果没有设置 `PAPER_LLM_API_KEY`，脚本会显示提示并自动降级为离线抽取模式，不会因 `Sampling not supported` 中断。
+独立演示客户端本身不提供 MCP Sampling。如果 JSON 中没有配置 `llm.api_key`，脚本会显示提示并自动降级为离线抽取模式。
 
 默认在 PDF 同目录生成 `论文-report.md`。指定输出路径：
 
