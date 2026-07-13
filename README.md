@@ -61,6 +61,30 @@ stdio MCP 客户端配置示例：
 
 若客户端支持 MCP Sampling，可将 `use_llm` 设为 `true`。这会把提取出的论文文本交给客户端模型总结，无需在服务端配置模型密钥。`max_pages` 控制最多解析页数；超长文本在 LLM 模式下最多提交前 80,000 个字符。
 
+## 演示案例
+
+仓库中的 [`examples/demo.py`](examples/demo.py) 是一个完整的 MCP 客户端案例。它会自动启动本项目的 MCP Server，依次调用 `inspect_paper` 和 `generate_paper_report`。
+
+把论文 PDF 放到任意位置，例如项目根目录下的 `论文.pdf`，然后执行：
+
+```powershell
+uv run python examples/demo.py ".\论文.pdf"
+```
+
+默认会在 PDF 所在目录生成 `论文-report.md`。也可以指定输出文件和最大页数：
+
+```powershell
+uv run python examples/demo.py ".\论文.pdf" --output ".\reports\论文汇总.md" --max-pages 50
+```
+
+查看全部参数：
+
+```powershell
+uv run python examples/demo.py --help
+```
+
+该独立演示客户端使用离线总结模式。`--use-llm` 需要客户端实现 MCP Sampling，因此通常应在 Claude Desktop、VS Code 等支持 Sampling 的 MCP 客户端中使用，而不是在此脚本中启用。
+
 ## 测试
 
 ```powershell
