@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "paper-report-mcp"
+version = "0.1.0"
+description = "An MCP server that parses PDF papers and produces structured reports"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "mcp>=1.27,<2",
+  "pypdf>=5.0,<7",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+paper-report-mcp = "paper_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/paper_mcp"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
