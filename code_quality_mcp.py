@@ -4,6 +4,9 @@ from collections import Counter
 from typing import Dict, List
 
 
+SUPPORTED_SUFFIXES = (".py", ".pyi", ".js", ".ts", ".java", ".go", ".cs", ".cpp", ".cc", ".cxx", ".cu")
+
+
 def _strip_comments_and_strings(source: str) -> str:
     try:
         tree = ast.parse(source)
@@ -27,7 +30,11 @@ def _estimate_comment_rate(source: str) -> float:
     if not lines:
         return 0.0
 
-    comment_lines = sum(1 for line in lines if line.strip().startswith("#"))
+    comment_lines = sum(
+        1
+        for line in lines
+        if line.strip().startswith(("#", "//", "/*", "*"))
+    )
     return round(comment_lines / len(lines), 4)
 
 
@@ -48,7 +55,7 @@ def analyze_path(path: str) -> Dict[str, object]:
         files = []
         for root, _, filenames in os.walk(path):
             for filename in filenames:
-                if filename.endswith((".py", ".js", ".ts", ".java", ".go", ".cs")):
+                if filename.endswith(SUPPORTED_SUFFIXES):
                     files.append(os.path.join(root, filename))
 
     file_results: List[Dict[str, object]] = []
@@ -79,3 +86,34 @@ def analyze_path(path: str) -> Dict[str, object]:
     }
 
     return {"file_count": len(file_results), "files": file_results, "overall": overall}
+
+
+def build_markdown_report(target_path: str, analysis_result: Dict[str, object]) -> str:
+    target_path = os.path.abspath(target_path)
+    lines = [
+        "# 代码规范检查报告",
+        "",
+        f"- 目标路径：{target_path}",
+        f"- 分析文件数：{analysis_result.get('file_count', 0)}",
+        f"- 平均注释率：{analysis_result.get('overall', {}).get('comment_rate', 0.0):.4f}",
+        f"- 平均冗余度：{analysis_result.get('overall', {}).get('redundancy_ratio', 0.0):.4f}",
+        "",
+        "## 文件清单",
+        "",
+    ]
+
+    for item in analysis_result.get("files", []):
+        rel_path = os.path.relpath(item["path"], target_path)
+        lines.extend(
+            [
+                f"- {rel_path}",
+                f"  - 注释率：{item.get('comment_rate', 0.0):.4f}",
+                f"  - 冗余度：{item.get('redundancy_ratio', 0.0):.4f}",
+                f"  - 行数：{item.get('lines', 0)}",
+            ]
+        )
+
+    if not analysis_result.get("files"):
+        lines.append("- 未发现可分析文件")
+
+    return "\n".join(lines)
