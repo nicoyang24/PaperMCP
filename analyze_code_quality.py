@@ -11,6 +11,7 @@ def main() -> int:
     parser.add_argument("path", help="The file or directory to analyze")
     parser.add_argument("--markdown", action="store_true", help="Output a Chinese Markdown report")
     parser.add_argument("--json", action="store_true", help="Output JSON result")
+    parser.add_argument("--output", help="Optional path to write the Markdown report to a file")
     args = parser.parse_args()
 
     target_path = os.path.abspath(args.path)
@@ -19,8 +20,16 @@ def main() -> int:
         return 1
 
     result = analyze_path(target_path)
+    report = build_markdown_report(target_path, result)
+
+    if args.output:
+        output_path = os.path.abspath(args.output)
+        with open(output_path, "w", encoding="utf-8") as fh:
+            fh.write(report)
+        print(f"Report written to: {output_path}")
+
     if args.markdown or not args.json:
-        print(build_markdown_report(target_path, result))
+        print(report)
     else:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

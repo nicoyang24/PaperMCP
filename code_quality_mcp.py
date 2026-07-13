@@ -1,28 +1,11 @@
 import ast
 import os
+import re
 from collections import Counter
 from typing import Dict, List
 
 
 SUPPORTED_SUFFIXES = (".py", ".pyi", ".js", ".ts", ".java", ".go", ".cs", ".cpp", ".cc", ".cxx", ".cu")
-
-
-def _strip_comments_and_strings(source: str) -> str:
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return source
-
-    lines_to_keep = set()
-    for node in ast.walk(tree):
-        if hasattr(node, "lineno"):
-            lines_to_keep.add(node.lineno)
-        if hasattr(node, "end_lineno") and node.end_lineno is not None:
-            lines_to_keep.add(node.end_lineno)
-
-    return "\n".join(
-        line for index, line in enumerate(source.splitlines(), start=1) if index in lines_to_keep
-    )
 
 
 def _estimate_comment_rate(source: str) -> float:
@@ -39,13 +22,56 @@ def _estimate_comment_rate(source: str) -> float:
 
 
 def _estimate_redundancy_ratio(source: str) -> float:
-    tokens = [token for token in source.replace("\n", " ").split() if token]
+    tokens = [token for token in re.split(r"[^A-Za-z0-9_]+", source) if token]
     if not tokens:
         return 0.0
 
     counts = Counter(tokens)
     repeated = sum(count - 1 for count in counts.values() if count > 1)
     return round(repeated / len(tokens), 4)
+
+
+def _find_redundant_patterns(source: str) -> List[str]:
+    lines = source.splitlines()
+    if not lines:
+        return []
+
+    repeats: List[tuple[str, int]] = []
+    for line in lines:
+        stripped = line.strip()
+        if len(stripped) < 8 or stripped.startswith(("#", "//", "/*", "*")):
+            continue
+        repeats.append((stripped, 1))
+
+    counts = Counter(stripped for stripped, _ in repeats)
+    repeated_lines = [line for line, count in counts.items() if count > 1]
+    return repeated_lines[:5]
+
+
+def _find_long_structures(source: str) -> List[Dict[str, object]]:
+    lines = source.splitlines()
+    results: List[Dict[str, object]] = []
+    for idx, line in enumerate(lines, start=1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if re.match(r"^(def|class|struct|function|__global__|void|int|float|double|std::|template)\b", stripped):
+            if len(stripped) > 70:
+                results.append({"line": idx, "snippet": stripped[:100]})
+    return results[:5]
+
+
+def _find_naming_warnings(source: str) -> List[str]:
+    warnings: List[str] = []
+    for line in source.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if re.search(r"\b([a-z]+_[a-z]+_[a-z]+)\b", stripped):
+            warnings.append(stripped[:120])
+        if re.search(r"\b([A-Za-z]+[A-Z][A-Za-z]+)\b", stripped) and "class " not in stripped and "struct " not in stripped:
+            warnings.append(stripped[:120])
+    return warnings[:5]
 
 
 def analyze_path(path: str) -> Dict[str, object]:
@@ -72,6 +98,9 @@ def analyze_path(path: str) -> Dict[str, object]:
                 "comment_rate": _estimate_comment_rate(source),
                 "redundancy_ratio": _estimate_redundancy_ratio(source),
                 "lines": len(source.splitlines()),
+                "redundant_patterns": _find_redundant_patterns(source),
+                "long_structures": _find_long_structures(source),
+                "naming_warnings": _find_naming_warnings(source),
             }
         )
 
@@ -106,12 +135,35 @@ def build_markdown_report(target_path: str, analysis_result: Dict[str, object]) 
         rel_path = os.path.relpath(item["path"], target_path)
         lines.extend(
             [
-                f"- {rel_path}",
-                f"  - 注释率：{item.get('comment_rate', 0.0):.4f}",
-                f"  - 冗余度：{item.get('redundancy_ratio', 0.0):.4f}",
-                f"  - 行数：{item.get('lines', 0)}",
+                f"### {rel_path}",
+                "",
+                f"- 注释率：{item.get('comment_rate', 0.0):.4f}",
+                f"- 冗余度：{item.get('redundancy_ratio', 0.0):.4f}",
+                f"- 行数：{item.get('lines', 0)}",
+                "",
+                "#### 可能冗余的代码片段",
+                "",
             ]
         )
+
+        for pattern in item.get("redundant_patterns", []) or []:
+            lines.append(f"- {pattern}")
+        if not item.get("redundant_patterns"):
+            lines.append("- 未发现明显重复行")
+
+        lines.extend(["", "#### 复杂度与结构提示", ""])
+        for structure in item.get("long_structures", []) or []:
+            lines.append(f"- 第 {structure['line']} 行可能过长或过于复杂：{structure['snippet']}")
+        if not item.get("long_structures"):
+            lines.append("- 未发现明显的长函数/长类/长模板提示")
+
+        lines.extend(["", "#### 命名规范提示", ""])
+        for warning in item.get("naming_warnings", []) or []:
+            lines.append(f"- {warning}")
+        if not item.get("naming_warnings"):
+            lines.append("- 未发现明显命名问题")
+
+        lines.append("")
 
     if not analysis_result.get("files"):
         lines.append("- 未发现可分析文件")

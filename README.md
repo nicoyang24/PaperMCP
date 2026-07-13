@@ -27,7 +27,12 @@
    python -m unittest discover -s tests -v
    ```
 
-3. 启动 MCP 服务
+3. 生成 Markdown 报告
+   ```bash
+   python analyze_code_quality.py "D:\nicoyang\PracticePlace\test" --markdown --output "D:\nicoyang\PracticePlace\code_quality_report.md"
+   ```
+
+4. 启动 MCP 服务
    ```bash
    python mcp_server.py
    ```
